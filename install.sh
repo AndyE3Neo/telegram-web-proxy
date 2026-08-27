@@ -89,7 +89,6 @@ cat <<PROFEOF > /etc/tproxy-server/profiles.json
   ]
 }
 PROFEOF
-chmod 0400 /etc/tproxy-server/profiles.json
 chown root:tproxy /etc/tproxy-server/profiles.json
 chmod 0440 /etc/tproxy-server/profiles.json
 
@@ -104,8 +103,7 @@ chmod 0400 /etc/mtproxy/mtproxy.env
 echo "🔧 Настройка backend MTProxy..."
 rm -rf /opt/MTProxy
 git clone https://github.com/TelegramMessenger/MTProxy.git /opt/MTProxy
-cd /opt/MTProxy
-make -j"$(nproc)"
+(cd /opt/MTProxy && make -j"$(nproc)")
 
 curl -fsSL https://core.telegram.org/getProxySecret -o /etc/mtproxy/proxy-secret
 curl -fsSL https://core.telegram.org/getProxyConfig -o /etc/mtproxy/proxy-multi.conf
@@ -146,7 +144,7 @@ nft add rule inet tproxy_backend input tcp dport 8081 ip saddr != 127.0.0.1 drop
 
 # 12. Регистрация и запуск systemd служб
 echo "🚀 Регистрация и запуск служб..."
-cat <<MTPROXYSVC > /etc/systemd/system/mtproxy.service
+cat <<'MTPROXYSVC' > /etc/systemd/system/mtproxy.service
 [Unit]
 Description=Official Telegram MTProxy backend
 After=network-online.target

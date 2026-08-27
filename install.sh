@@ -1,5 +1,5 @@
-cat << 'EOF' > /root/install.sh
 #!/bin/bash
+set -euo pipefail
 
 echo "=========================================================="
 echo " 🚀 Полная установка tproxy-server (Telegram WEB Proxy)"
@@ -40,7 +40,7 @@ fi
 echo ""
 echo "📦 Установка системных зависимостей..."
 apt update -qq
-apt install -y -qq curl git build-essential nftables golang-go debian-keyring debian-archive-keyring apt-transport-https
+apt install -y -qq curl git build-essential nftables golang-go debian-keyring debian-archive-keyring apt-transport-https ca-certificates libssl-dev zlib1g-dev
 
 # 4. Подготовка директорий и сайта-заглушки
 echo "📁 Подготовка директорий..."
@@ -89,8 +89,8 @@ cat <<PROFEOF > /etc/tproxy-server/profiles.json
   ]
 }
 PROFEOF
-chmod 0400 /etc/tproxy-server/profiles.json
-chown root:root /etc/tproxy-server/profiles.json
+chown root:tproxy /etc/tproxy-server/profiles.json
+chmod 0440 /etc/tproxy-server/profiles.json
 
 cat <<ENV_EOF > /etc/mtproxy/mtproxy.env
 MTPROXY_SECRET=$SECRET
@@ -101,7 +101,14 @@ chmod 0400 /etc/mtproxy/mtproxy.env
 
 # 9. Установка MTProxy
 echo "🔧 Настройка backend MTProxy..."
-bash deploy/install-mtproxy.sh
+rm -rf /opt/MTProxy
+git clone https://github.com/TelegramMessenger/MTProxy.git /opt/MTProxy
+(cd /opt/MTProxy && make -j"$(nproc)")
+
+curl -fsSL https://core.telegram.org/getProxySecret -o /etc/mtproxy/proxy-secret
+curl -fsSL https://core.telegram.org/getProxyConfig -o /etc/mtproxy/proxy-multi.conf
+chown root:mtproxy /etc/mtproxy/proxy-secret /etc/mtproxy/proxy-multi.conf
+chmod 0640 /etc/mtproxy/proxy-secret /etc/mtproxy/proxy-multi.conf
 
 # 10. Установка и настройка Caddy
 echo "🌐 Установка и настройка Caddy..."
@@ -110,7 +117,12 @@ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /
 apt update -qq
 apt install -y -qq caddy
 
+mkdir -p /etc/caddy
 cat <<CADDYEOF > /etc/caddy/Caddyfile
+{
+    email $EMAIL
+}
+
 $DOMAIN {
     reverse_proxy 127.0.0.1:8080 {
         transport http {
@@ -132,8 +144,52 @@ nft add rule inet tproxy_backend input tcp dport 8081 ip saddr != 127.0.0.1 drop
 
 # 12. Регистрация и запуск systemd служб
 echo "🚀 Регистрация и запуск служб..."
-cp deploy/tproxy-server.service /etc/systemd/system/
-cp deploy/mtproxy.service /etc/systemd/system/
+cat <<'MTPROXYSVC' > /etc/systemd/system/mtproxy.service
+[Unit]
+Description=Official Telegram MTProxy backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mtproxy
+Group=mtproxy
+EnvironmentFile=/etc/mtproxy/mtproxy.env
+Environment=MTPROXY_WORKERS=1
+Environment=MTPROXY_MAX_CONNECTIONS=4096
+WorkingDirectory=/opt/MTProxy
+ExecStart=/opt/MTProxy/objs/bin/mtproto-proxy -u mtproxy -p 8888 -H 2398 -S ${MTPROXY_SECRET} --aes-pwd /etc/mtproxy/proxy-secret /etc/mtproxy/proxy-multi.conf -M ${MTPROXY_WORKERS} -C ${MTPROXY_MAX_CONNECTIONS}
+Restart=on-failure
+RestartSec=3s
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
+MTPROXYSVC
+
+cat <<'TPROXYSVC' > /etc/systemd/system/tproxy-server.service
+[Unit]
+Description=Browser HTTPS transport relay
+After=network-online.target mtproxy.service
+Wants=network-online.target mtproxy.service
+
+[Service]
+Type=simple
+User=tproxy
+Group=tproxy
+ExecStart=/usr/local/bin/tproxy-server -config /etc/tproxy-server/config.json
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=20s
+LimitNOFILE=1048576
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
+TPROXYSVC
 
 systemctl daemon-reload
 systemctl enable mtproxy tproxy-server caddy
@@ -153,4 +209,3 @@ echo ""
 echo " 🔗 Ссылка для быстрого подключения (откройте в Telegram):"
 echo " https://t.me/webproxy?server=$DOMAIN&secret=$SECRET"
 echo "=========================================================="
-EOF

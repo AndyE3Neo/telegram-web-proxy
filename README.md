@@ -35,5 +35,6 @@
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/fastbrains13/telegram-web-proxy/main/install.sh -o /root/install.sh
-chmod +x install.sh
-sudo ./install.sh
+chmod +x /root/install.sh
+sudo /root/install.sh
+```

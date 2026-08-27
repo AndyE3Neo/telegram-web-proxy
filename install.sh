@@ -119,6 +119,7 @@ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /
 apt update -qq
 apt install -y -qq caddy
 
+mkdir -p /etc/caddy
 cat <<CADDYEOF > /etc/caddy/Caddyfile
 {
     email $EMAIL

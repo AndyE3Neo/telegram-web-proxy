@@ -184,7 +184,6 @@ TimeoutStopSec=20s
 LimitNOFILE=1048576
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=strict
 ProtectHome=true
 UMask=0077
 

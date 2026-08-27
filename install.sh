@@ -167,7 +167,7 @@ LimitNOFILE=1048576
 WantedBy=multi-user.target
 MTPROXYSVC
 
-cat <<TPROXYSVC > /etc/systemd/system/tproxy-server.service
+cat <<'TPROXYSVC' > /etc/systemd/system/tproxy-server.service
 [Unit]
 Description=Browser HTTPS transport relay
 After=network-online.target mtproxy.service

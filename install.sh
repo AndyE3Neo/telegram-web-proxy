@@ -1,5 +1,5 @@
-cat << 'EOF' > /root/install.sh
 #!/bin/bash
+set -euo pipefail
 
 echo "=========================================================="
 echo " 🚀 Полная установка tproxy-server (Telegram WEB Proxy)"
@@ -111,6 +111,10 @@ apt update -qq
 apt install -y -qq caddy
 
 cat <<CADDYEOF > /etc/caddy/Caddyfile
+{
+    email $EMAIL
+}
+
 $DOMAIN {
     reverse_proxy 127.0.0.1:8080 {
         transport http {
@@ -153,4 +157,3 @@ echo ""
 echo " 🔗 Ссылка для быстрого подключения (откройте в Telegram):"
 echo " https://t.me/webproxy?server=$DOMAIN&secret=$SECRET"
 echo "=========================================================="
-EOF
